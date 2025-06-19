@@ -585,6 +585,102 @@ So, "Hello".`,
 	}
 }
 
+func TestParseMultipartAlternativeWithMixed(t *testing.T) {
+	// Create a test email with multipart/alternative containing multipart/mixed and message/rfc822
+	testEmail := `From: Test Sender <test@example.com>
+To: Test Recipient <recipient@example.com>
+Subject: Test Multipart Alternative with Mixed
+Content-Type: multipart/alternative; boundary="boundary1"
+MIME-Version: 1.0
+
+--boundary1
+Content-Transfer-Encoding: base64
+Content-Type: text/plain; charset=utf-8
+
+VGVzdCB0ZXh0IGJvZHkgY29udGVudA==
+
+--boundary1
+Content-Type: multipart/mixed; boundary="boundary2"
+
+--boundary2
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Test HTML body content</p></body></html>
+
+--boundary2
+Content-Disposition: attachment; filename="test.eml"
+Content-Type: message/rfc822; name="test.eml"
+Content-Transfer-Encoding: 7bit
+
+From: Nested Sender <nested@example.com>
+To: Nested Recipient <nested@example.com>
+Subject: Nested Email
+Content-Type: text/plain; charset=utf-8
+
+This is a nested email content.
+
+--boundary2
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Additional HTML content</p></body></html>
+
+--boundary2--
+
+--boundary1--
+`
+
+	// Test parsing a complex multipart/alternative email with nested multipart/mixed and message/rfc822
+	email, err := Parse(strings.NewReader(testEmail))
+	if err != nil {
+		t.Fatalf("Failed to parse test email: %v", err)
+	}
+
+	// Verify the parsed email
+	if email.Subject != "Test Multipart Alternative with Mixed" {
+		t.Errorf("Expected subject 'Test Multipart Alternative with Mixed', got '%s'", email.Subject)
+	}
+
+	if len(email.From) == 0 {
+		t.Error("Expected non-empty From field")
+	}
+
+	if email.From[0].Address != "test@example.com" {
+		t.Errorf("Expected from address 'test@example.com', got '%s'", email.From[0].Address)
+	}
+
+	// Should have text body (base64 decoded)
+	expectedText := "Test text body content"
+	if email.TextBody != expectedText {
+		t.Errorf("Expected text body '%s', got '%s'", expectedText, email.TextBody)
+	}
+
+	// Should have HTML body
+	if !strings.Contains(email.HTMLBody, "Test HTML body content") {
+		t.Errorf("Expected HTML body to contain 'Test HTML body content', got '%s'", email.HTMLBody)
+	}
+
+	// Should have attachments (the message/rfc822)
+	if len(email.Attachments) != 1 {
+		t.Errorf("Expected 1 attachment, got %d", len(email.Attachments))
+		// Don't try to access the first attachment if there are none
+	} else {
+		if email.Attachments[0].Filename != "test.eml" {
+			t.Errorf("Expected attachment filename 'test.eml', got '%s'", email.Attachments[0].Filename)
+		}
+	}
+
+	t.Logf("Successfully parsed complex multipart email")
+	t.Logf("Subject: %s", email.Subject)
+	t.Logf("Text body: %s", email.TextBody)
+	t.Logf("HTML body length: %d", len(email.HTMLBody))
+	t.Logf("Attachments: %d", len(email.Attachments))
+	if len(email.Attachments) > 0 {
+		t.Logf("First attachment filename: %s", email.Attachments[0].Filename)
+	}
+}
+
 func parseDate(in string) time.Time {
 	out, err := time.Parse(time.RFC1123Z, in)
 	if err != nil {
@@ -945,4 +1041,48 @@ Content-Disposition: attachment;
 "Foo", "Bar", "Baz", "Bum", "Poo"
 
 --f403045f1dcc043a44054c8e6bbf--
+`
+
+var multipartAlternativeComplexExample = `From: Test Sender <test@example.com>
+To: Test Recipient <recipient@example.com>
+Subject: Test Multipart Alternative with Mixed
+Content-Type: multipart/alternative; boundary="boundary1"
+MIME-Version: 1.0
+
+--boundary1
+Content-Transfer-Encoding: base64
+Content-Type: text/plain; charset=utf-8
+
+VGVzdCB0ZXh0IGJvZHkgY29udGVudA==
+
+--boundary1
+Content-Type: multipart/mixed; boundary="boundary2"
+
+--boundary2
+Content-Transfer-Encoding: quoted-printable
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Test HTML body content</p></body></html>
+
+--boundary2
+Content-Disposition: attachment; filename="test.eml"
+Content-Type: message/rfc822; name="test.eml"
+Content-Transfer-Encoding: 7bit
+
+From: Nested Sender <nested@example.com>
+To: Nested Recipient <nested@example.com>
+Subject: Nested Email
+Content-Type: text/plain; charset=utf-8
+
+This is a nested email content.
+
+--boundary2
+Content-Transfer-Encoding: 7bit
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Additional HTML content</p></body></html>
+
+--boundary2--
+
+--boundary1--
 `
